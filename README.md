@@ -447,6 +447,29 @@ python\python.exe ..\..\scripts\check_env.py --root .
 - `run.bat --local` 第二次启动时 `%TEMP%\fr-translator-portable\` 只更新变化的文件；
 - 删除日志目录后运行，日志应回退写到 `%LOCALAPPDATA%\fr-translator\logs`（U 盘只读场景）。
 
+### 本地构建与测试记录（2026-10-21，Windows 11 x64 / CPU）
+
+| 产物 | 大小 | SHA-256 |
+| --- | --- | --- |
+| `FrenchTranslatorPortable-lite.zip` | 351.4 MB（解压 1.51 GB） | `E51ACC48A785BFA742EBA2B67F12CDB0CF4DD9A7870D371CFBB203EC8C63687F` |
+| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `78B68FA9D0009A929286D9562255C5982A176A2BCF3E00785968E7B683CE6CE5` |
+
+已执行的验证：
+
+- 29 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、空识别、翻译失败降级、纯音乐）；
+- 用 MMS-TTS 合成 3 句法语（13.9 秒），`python -m fr_translator --wav` 输出 3 组
+  “法语/中文”，识别文本与原文基本一致；
+- 用 `winsound` 播放该 WAV，通过系统 loopback 捕获，实际输出 3 组字幕（非文件模拟）；
+- full 包解压后断网运行 `run.bat --wav`，正常加载本地模型并翻译；
+- `run.bat --local` 成功把包复制到 `%TEMP%` 并从临时目录启动；
+- 设备选择结果写入用户配置后，第二次启动不再提示，直接监听上次选择的设备；
+- 纯音乐（6 秒和弦）运行无输出、无异常，退出码 0；
+- 两个 zip 均通过 `ZipFile.testzip()` 完整性校验。
+
+> 本机的 DSH 沙箱禁止写 `%LOCALAPPDATA%`，所以“用户配置写入”是在把 `LOCALAPPDATA`
+> 指到工作区临时目录后验证的；真实桌面上写入位置不变。无音频设备/设备被占用的提示
+> 通过单元测试和代码路径检查覆盖，未在真机上禁用声卡（避免修改系统音频设置）。
+
 ---
 
 ## 12. 可选：PyQt6 悬浮字幕

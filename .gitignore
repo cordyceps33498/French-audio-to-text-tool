@@ -1,0 +1,37 @@
+# 构建产物与本地缓存
+portable/
+dist/
+build/
+*.egg-info/
+.cache/
+.deps/
+
+# 虚拟环境
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# 模型（体积大，交给脚本下载）
+models/
+*.onnx
+*.bin
+*.safetensors
+
+# 运行时生成
+config.yaml
+logs/
+*.log
+*.wav
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

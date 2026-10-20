@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fr-translator"
+version = "0.1.0"
+description = "Windows 系统音频法语实时翻译（faster-whisper + opus-mt-fr-zh）"
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+license = { text = "MIT" }
+authors = [{ name = "fr-translator contributors" }]
+keywords = ["french", "translation", "whisper", "windows", "loopback"]
+classifiers = [
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3.10",
+  "License :: OSI Approved :: MIT License",
+]
+# 注意：这里只列出“需要被 setuptools 识别”的依赖。
+# torch 的 CPU 版无法在 pyproject 中表达，请始终用 requirements.txt 安装：
+#   pip install -r requirements.txt
+dependencies = [
+  "numpy==1.26.4",
+  "PyYAML==6.0.2",
+  "soundcard==0.4.3",
+  "faster-whisper==1.0.3",
+  "ctranslate2==4.4.0",
+  "transformers==4.44.2",
+  "sentencepiece==0.2.0",
+  "sacremoses==0.1.1",
+  "huggingface-hub==0.25.1",
+  "silero-vad==5.1.2",
+  "onnxruntime==1.19.2",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt6==6.7.1"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+fr-translator = "fr_translator.__main__:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

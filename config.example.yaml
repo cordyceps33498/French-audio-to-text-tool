@@ -1,0 +1,72 @@
+# fr-translator 配置示例
+#
+# 加载顺序（后者覆盖前者）：
+#   1. 程序内置默认值
+#   2. 便携包根目录 config.yaml（dev 模式下是仓库根目录 config.yaml）
+#   3. %LOCALAPPDATA%\fr-translator\config.yaml（用户配置，设备选择会写在这里）
+#   4. 命令行 --config 指定的文件
+#
+# 所有相对路径都相对于“程序根目录”解析，与当前工作目录无关。
+
+audio:
+  # 输出设备名称或设备 id；auto 表示首次运行时交互选择。
+  device: auto
+  # 与 device 配套的设备 id（soundcard 的 loopback 设备 id），用于精确匹配。
+  device_id: ""
+  samplerate: 16000
+  channels: 1
+  # 每次从 loopback 读取的音频块长度（毫秒），建议 20~30。
+  block_ms: 24
+
+vad:
+  # silero-vad 的语音概率阈值；越大越严格。
+  threshold: 0.5
+  # 连续静音超过该时长则结束一句。
+  min_silence_ms: 500
+  # 一句话的有效语音短于该时长则丢弃（过滤咳嗽、敲击声）。
+  min_speech_ms: 250
+  # 切句时在语音前后保留的余量，避免把首尾音切掉。
+  speech_pad_ms: 200
+  # 触发前预录的音频长度，避免句首被切掉。
+  pre_roll_ms: 200
+  # 单句最长时长；超长会强制切分，防止一直累积。
+  max_utterance_s: 12
+
+asr:
+  # faster-whisper 模型名（便携包内为 models/faster-whisper/<model>）。
+  model: small
+  language: fr
+  compute_type: int8
+  beam_size: 5
+  # 开启 faster-whisper 内置 VAD，作为 silero-vad 之后的二次过滤。
+  vad_filter: true
+  # 0 表示由 ctranslate2 自动决定线程数。
+  cpu_threads: 0
+
+translate:
+  # 首选直译模型。注意：截至 2026-10，Hugging Face 上并没有
+  # Helsinki-NLP/opus-mt-fr-zh 这个仓库，因此默认启用下面的两段式回退。
+  # 如果以后官方发布了 fr-zh 直译模型，程序会优先使用（离线时看本地缓存）。
+  model: Helsinki-NLP/opus-mt-fr-zh
+  fallback: true
+  # 两段式：法语 -> 英语 -> 中文，两个都是 OPUS-MT / MarianMT。
+  pivot_model: Helsinki-NLP/opus-mt-fr-en
+  pivot_target_model: Helsinki-NLP/opus-mt-en-zh
+  max_length: 512
+  num_beams: 4
+
+logging:
+  # DEBUG / INFO / WARNING / ERROR
+  level: INFO
+  # 相对于根目录；不可写时自动回退到用户配置目录。
+  file: logs/fr-translator.log
+
+# 可选：PyQt6 悬浮字幕（python -m fr_translator.gui）的界面状态。
+# 一般由程序自动写入 %LOCALAPPDATA%\fr-translator\config.yaml，不需要手工配置。
+# gui:
+#   x: 480
+#   y: 800
+#   width: 960
+#   font_size: 22
+#   show_french: true
+#   click_through: false

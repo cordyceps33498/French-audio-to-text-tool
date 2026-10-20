@@ -1,0 +1,111 @@
+name: build-portable
+
+# 触发方式：
+#   * push tag（v1.0.0 之类）：构建 lite + full，并附加到 GitHub Release；
+#   * 手动运行：默认只构建 lite，可勾选 full。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      build_full:
+        description: "同时构建 full 包（含模型，约 1.3GB，耗时较长）"
+        type: boolean
+        default: true
+      hf_endpoint:
+        description: "Hugging Face 镜像（可选，例如 https://hf-mirror.com）"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-portable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 240
+
+    env:
+      PYTHONIOENCODING: utf-8
+      # 仅手动触发时生效；空字符串表示使用 Hugging Face 官方源
+      HF_ENDPOINT: ${{ github.event.inputs.hf_endpoint || vars.HF_ENDPOINT }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python 3.10（仅用于下载兜底）
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 显示环境信息
+        shell: pwsh
+        run: |
+          python --version
+          $PSVersionTable.PSVersion.ToString()
+          Write-Host "HF_ENDPOINT=$env:HF_ENDPOINT"
+
+      # ---------------------------------------------------------------------
+      # lite：约 350MB，无模型，首次运行联网下载
+      # ---------------------------------------------------------------------
+      - name: 构建 lite 包
+        shell: pwsh
+        timeout-minutes: 60
+        run: ./scripts/build_portable.ps1 -Mode lite
+
+      - name: 上传 lite artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrenchTranslatorPortable-lite
+          path: dist/FrenchTranslatorPortable-lite.zip
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+      # ---------------------------------------------------------------------
+      # full：约 1.3GB，含 faster-whisper small + opus-mt，纯离线
+      # ---------------------------------------------------------------------
+      - name: 构建 full 包
+        if: ${{ github.event_name == 'push' || inputs.build_full }}
+        shell: pwsh
+        timeout-minutes: 180
+        run: ./scripts/build_portable.ps1 -Mode full
+
+      - name: 上传 full artifact
+        if: ${{ github.event_name == 'push' || inputs.build_full }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrenchTranslatorPortable-full
+          path: dist/FrenchTranslatorPortable-full.zip
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 检查产物
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Filter *.zip | ForEach-Object {
+            Write-Host ("{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB))
+          }
+
+      # ---------------------------------------------------------------------
+      # Release：仅在 push tag 时执行
+      # ---------------------------------------------------------------------
+      - name: 附加到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/FrenchTranslatorPortable-lite.zip
+            dist/FrenchTranslatorPortable-full.zip
+          name: fr-translator ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

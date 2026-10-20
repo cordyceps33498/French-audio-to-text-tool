@@ -1,0 +1,5 @@
+# Optional GUI dependencies (PyQt6 floating subtitles).
+# Install separately:
+#   .venv\Scripts\python.exe -m pip install -r requirements-gui.txt
+# Portable build: scripts/build_portable.ps1 -WithGui
+PyQt6==6.7.1

@@ -11,7 +11,7 @@ torch==2.4.1+cpu
 torchaudio==2.4.1+cpu
 faster-whisper==1.0.3
 ctranslate2==4.4.0
-tokenizers==0.19.1
+tokenizers==0.23.3
 huggingface-hub==0.25.1
 soundcard==0.4.3
 numpy==1.26.4

@@ -9,7 +9,7 @@ description = "Windows 系统音频法语实时翻译（faster-whisper + opus-mt
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
 license = { text = "MIT" }
-authors = [{ name = "fr-translator contributors" }]
+authors = [{ name = "cordyceps33498" }]
 keywords = ["french", "translation", "whisper", "windows", "loopback"]
 classifiers = [
   "Operating System :: Microsoft :: Windows",

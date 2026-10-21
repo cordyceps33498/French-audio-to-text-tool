@@ -16,7 +16,7 @@ huggingface-hub==0.25.1
 soundcard==0.4.3
 numpy==1.26.4
 PyYAML==6.0.2
-setuptools==75.8.0
+setuptools==84.0.0
 silero-vad==5.1.2
 onnxruntime==1.19.2
 protobuf==4.25.5

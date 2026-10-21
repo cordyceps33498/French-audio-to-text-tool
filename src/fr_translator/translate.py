@@ -148,14 +148,21 @@ class MarianTranslator:
         # 从平铺目录加载，避免 HF 缓存的 blobs/symlink 在 Windows 上
         # 因“没有创建符号链接的特权”而留下 0 字节文件。
         logger.info("加载翻译模型 %s（目录=%s）", model_id, local_dir)
-        tokenizer = self._marian_tokenizer.from_pretrained(
-            str(local_dir),
-            local_files_only=True,
-            clean_up_tokenization_spaces=False,
-        )
-        model = self._marian_model.from_pretrained(
-            str(local_dir), local_files_only=True
-        )
+        try:
+            tokenizer = self._marian_tokenizer.from_pretrained(
+                str(local_dir),
+                local_files_only=True,
+                clean_up_tokenization_spaces=False,
+            )
+            model = self._marian_model.from_pretrained(
+                str(local_dir), local_files_only=True
+            )
+        except OSError as exc:
+            raise ModelLoadError(
+                f"翻译模型加载失败：{model_id}\n"
+                "模型文件可能不完整，或路径/权限异常。请重新下载模型，或重新解压便携包。\n"
+                f"详细信息：{exc}"
+            ) from exc
         model.to("cpu")
         model.eval()
         return tokenizer, model

@@ -459,8 +459,8 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 | 产物 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `baaf34689dc146584ed76af58f090a7df1791532042d04aaefc6dac355362c67` |
-| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `0f8e75482e21d7fc7ef4ff8e079934520075c5cdbec49e9b94ea2fa48956488b` |
+| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `a0a26b2f8f4f3ce5b7777bd279453c5226819fcc73768d2ba54397223a98c186` |
+| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `ddf45e211df9d082acdb02c25c7d1929b1f85316ef3863aee6a048b1242f2020` |
 
 已执行的验证：
 

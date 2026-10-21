@@ -46,6 +46,8 @@ asr:
   cpu_threads: 0
 
 translate:
+  # false = 只识别法语原文，不加载翻译模型（asr 轻量包默认关闭）
+  enabled: true
   # 首选直译模型。注意：截至 2026-10，Hugging Face 上并没有
   # Helsinki-NLP/opus-mt-fr-zh 这个仓库，因此默认启用下面的两段式回退。
   # 如果以后官方发布了 fr-zh 直译模型，程序会优先使用（离线时看本地缓存）。

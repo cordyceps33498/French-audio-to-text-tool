@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       build_full:
-        description: "同时构建 full 包（含模型，约 1.3GB，耗时较长）"
+        description: "同时构建 full（约 1.3GB）和 asr（约 780MB）包"
         type: boolean
         default: true
       hf_endpoint:
@@ -87,6 +87,25 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # ---------------------------------------------------------------------
+      # asr：约 780MB，只含 faster-whisper small，只输出法语原文
+      # ---------------------------------------------------------------------
+      - name: 构建 asr 包
+        if: ${{ github.event_name == 'push' || inputs.build_full }}
+        shell: pwsh
+        timeout-minutes: 90
+        run: ./scripts/build_portable.ps1 -Mode asr
+
+      - name: 上传 asr artifact
+        if: ${{ github.event_name == 'push' || inputs.build_full }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrenchTranslatorPortable-asr
+          path: dist/FrenchTranslatorPortable-asr.zip
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
       - name: 检查产物
         shell: pwsh
         run: |
@@ -104,6 +123,7 @@ jobs:
           files: |
             dist/FrenchTranslatorPortable-lite.zip
             dist/FrenchTranslatorPortable-full.zip
+            dist/FrenchTranslatorPortable-asr.zip
           name: fr-translator ${{ github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true

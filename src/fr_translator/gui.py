@@ -63,6 +63,7 @@ logger = logging.getLogger("fr_translator.gui")
 class Bridge(QObject):
     status = pyqtSignal(str, str)
     caption = pyqtSignal(str, str)
+    french_only = pyqtSignal(str)
     translation_failed = pyqtSignal(str, str)
     fatal = pyqtSignal(str)
 
@@ -78,6 +79,9 @@ class _SinkAdapter:
 
     def caption(self, french: str, chinese: str) -> None:
         self._bridge.caption.emit(french, chinese)
+
+    def french_only(self, french: str) -> None:
+        self._bridge.french_only.emit(french)
 
     def translation_failed(self, french: str, reason: str = "") -> None:
         self._bridge.translation_failed.emit(french, reason)
@@ -304,12 +308,22 @@ class Overlay(QWidget):
             self._status_timer.stop()
 
     def on_caption(self, french: str, chinese: str) -> None:
+        self._chinese.setVisible(True)
         self._french.setText(french)
         self._french.setVisible(self._show_french)
         self._chinese.setText(chinese or "…")
         self._status.setText("")
 
+    def on_french_only(self, french: str) -> None:
+        """asr 轻量模式：只显示法语原文。"""
+
+        self._chinese.setVisible(False)
+        self._french.setText(french)
+        self._french.setVisible(self._show_french)
+        self._status.setText("")
+
     def on_translation_failed(self, french: str, reason: str = "") -> None:
+        self._chinese.setVisible(True)
         self._french.setText(french)
         self._french.setVisible(self._show_french)
         self._chinese.setText("（翻译失败，已跳过本句）")
@@ -353,6 +367,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--device", default=None, metavar="NAME_OR_ID")
     parser.add_argument("--online", action="store_true")
     parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--no-translate", action="store_true", help="仅识别法语原文，不翻译")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args(argv)
 
@@ -385,6 +400,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.device:
             config.audio.device = args.device
             config.audio.device_id = ""
+        if args.no_translate:
+            config.translate.enabled = False
         _setup_logging(config, paths, args.debug)
         logger.info("GUI 启动，根目录：%s", paths.root)
 
@@ -429,6 +446,7 @@ def main(argv: list[str] | None = None) -> int:
 
         bridge.status.connect(overlay.on_status)
         bridge.caption.connect(overlay.on_caption)
+        bridge.french_only.connect(overlay.on_french_only)
         bridge.translation_failed.connect(overlay.on_translation_failed)
 
         def on_fatal(message: str) -> None:

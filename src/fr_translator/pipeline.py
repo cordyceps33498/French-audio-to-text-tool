@@ -26,11 +26,13 @@ _SENTINEL = object()
 
 
 class EventSink(Protocol):
-    """控制台 / GUI 都实现这三个方法。"""
+    """控制台 / GUI 都实现这些方法。"""
 
     def status(self, message: str, level: str = "info") -> None: ...
 
     def caption(self, french: str, chinese: str) -> None: ...
+
+    def french_only(self, french: str) -> None: ...
 
     def translation_failed(self, french: str, reason: str = "") -> None: ...
 
@@ -84,15 +86,16 @@ class TranslationEngine:
             samplerate=self.config.audio.samplerate,
         )
 
-        self.sink.status(
-            f"正在加载语音识别模型（faster-whisper {self.config.asr.model}，"
-            f"CPU {self.config.asr.compute_type}）..."
-        )
+        self.sink.status(f"正在加载语音识别模型（faster-whisper {self.config.asr.model}，"
+                         f"CPU {self.config.asr.compute_type}）...")
         self._asr.load()
 
-        self.sink.status(f"正在加载翻译模型（{self.config.translate.model}）...")
-        self._translator.load()
-        self.sink.status(f"翻译模型已就绪：{self._translator.describe()}")
+        if not self.config.translate.enabled:
+            self.sink.status("已关闭翻译：只输出法语识别原文（asr 轻量模式）。")
+        else:
+            self.sink.status(f"正在加载翻译模型（{self.config.translate.model}）...")
+            self._translator.load()
+            self.sink.status(f"翻译模型已就绪：{self._translator.describe()}")
 
         self.sink.status("模型加载完成，开始监听系统音频。")
 
@@ -203,6 +206,12 @@ class TranslationEngine:
 
         if not french:
             logger.debug("识别结果为空，跳过本句")
+            return
+
+        if not self.config.translate.enabled:
+            elapsed = time.perf_counter() - started
+            logger.info("耗时 %.2fs（仅识别）| %s", elapsed, french)
+            self.sink.french_only(french)
             return
 
         try:

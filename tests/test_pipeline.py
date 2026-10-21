@@ -15,6 +15,7 @@ from fr_translator.pipeline import TranslationEngine
 class FakeSink:
     def __init__(self) -> None:
         self.captions: list[tuple[str, str]] = []
+        self.french_only_items: list[str] = []
         self.failures: list[tuple[str, str]] = []
         self.statuses: list[tuple[str, str]] = []
 
@@ -23,6 +24,9 @@ class FakeSink:
 
     def caption(self, french: str, chinese: str) -> None:
         self.captions.append((french, chinese))
+
+    def french_only(self, french: str) -> None:
+        self.french_only_items.append(french)
 
     def translation_failed(self, french: str, reason: str = "") -> None:
         self.failures.append((french, reason))
@@ -88,6 +92,16 @@ class PipelineTests(unittest.TestCase):
         engine = self.make_engine(sink)
         engine._handle_utterance(np.zeros(16000, dtype=np.float32))
         self.assertEqual(sink.captions, [("Bonjour tout le monde", "大家好")])
+        self.assertEqual(sink.failures, [])
+
+    def test_asr_only_mode_skips_translation(self) -> None:
+        sink = FakeSink()
+        engine = self.make_engine(sink)
+        engine.config.translate.enabled = False
+        engine._translator = None  # type: ignore[assignment]
+        engine._handle_utterance(np.zeros(16000, dtype=np.float32))
+        self.assertEqual(sink.captions, [])
+        self.assertEqual(sink.french_only_items, ["Bonjour tout le monde"])
         self.assertEqual(sink.failures, [])
 
     def test_empty_asr_result_is_skipped(self) -> None:

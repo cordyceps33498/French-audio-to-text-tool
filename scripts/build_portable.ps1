@@ -25,7 +25,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('lite', 'full')]
+    [ValidateSet('lite', 'full', 'asr')]
     [string]$Mode,
 
     [switch]$SkipModels,
@@ -310,9 +310,10 @@ raise SystemExit(main([
         ) -Description '安装 pip（get-pip.py）'
     }
 
-    $requirements = Join-Path $RepoRoot 'requirements-portable.txt'
+    $requirementsName = if ($Mode -eq 'asr') { 'requirements-portable-asr.txt' } else { 'requirements-portable.txt' }
+    $requirements = Join-Path $RepoRoot $requirementsName
     if (-not (Test-Path -LiteralPath $requirements)) {
-        throw "找不到 requirements-portable.txt：$requirements"
+        throw "找不到 $requirementsName：$requirements"
     }
     Invoke-External -FilePath $pythonExe -Arguments @(
         '-m', 'pip', 'install',
@@ -344,8 +345,14 @@ raise SystemExit(main([
 
     # 校验依赖能正常 import（DLL 路径问题在这里暴露，而不是打包后才发现）
     $env:PATH = "$SitePackages\torch\lib;$SitePackages\ctranslate2;$env:PATH"
+    $checkCode = if ($Mode -eq 'asr') {
+        'import torch, ctranslate2, faster_whisper, soundcard, silero_vad, onnxruntime; print(1)'
+    }
+    else {
+        'import torch, ctranslate2, faster_whisper, transformers, soundcard, silero_vad, onnxruntime; print(1)'
+    }
     Invoke-External -FilePath $pythonExe -Arguments @(
-        '-c', 'import torch, ctranslate2, faster_whisper, transformers, soundcard, silero_vad, onnxruntime; print(1)'
+        '-c', $checkCode
     ) -Description '校验依赖导入'
 }
 
@@ -392,7 +399,7 @@ function Step-Models {
             }
         }
         $hubSource = Join-Path $source 'hub'
-        if (Test-Path -LiteralPath $hubSource) {
+        if ($Mode -ne 'asr' -and (Test-Path -LiteralPath $hubSource)) {
             $hubTarget = Join-Path $ModelsDir 'hub'
             New-Item -ItemType Directory -Force -Path $hubTarget | Out-Null
             Get-ChildItem -LiteralPath $hubSource -Directory -Filter 'Helsinki-NLP--*' |
@@ -404,7 +411,12 @@ function Step-Models {
         return
     }
 
-    Write-Step "下载模型（faster-whisper small / opus-mt-fr-zh / silero-vad）"
+    if ($Mode -eq 'asr') {
+        Write-Step "下载模型（faster-whisper small / silero-vad，跳过翻译）"
+    }
+    else {
+        Write-Step "下载模型（faster-whisper small / opus-mt-fr-zh / silero-vad）"
+    }
     New-Item -ItemType Directory -Force -Path $ModelsDir | Out-Null
     $pythonExe = Join-Path $PyDir 'python.exe'
     $prepare = Join-Path $RepoRoot 'scripts\prepare_models.py'
@@ -417,6 +429,7 @@ function Step-Models {
     if ($HfEndpoint) { $env:HF_ENDPOINT = $HfEndpoint }
     try {
         $arguments = @($prepare, '--root', $StagingRoot, '--retries', '3')
+        if ($Mode -eq 'asr') { $arguments += '--skip-translate' }
         if ($HfEndpoint) { $arguments += @('--hf-endpoint', $HfEndpoint) }
         Invoke-External -FilePath $pythonExe -Arguments $arguments -Description '预下载模型'
     }
@@ -437,6 +450,7 @@ function Test-TranslationModel {
 function Test-ModelsReady {
     $whisper = Join-Path $StagingRoot 'models\faster-whisper\small\model.bin'
     if (-not (Test-Path -LiteralPath $whisper)) { return $false }
+    if ($Mode -eq 'asr') { return $true }
     $hub = Join-Path $StagingRoot 'models\hub'
     if (-not (Test-Path -LiteralPath $hub)) { return $false }
 
@@ -450,6 +464,7 @@ function Step-Launchers {
     Write-Step "生成 run.bat / config.yaml / logs"
     $modelsReady = Test-ModelsReady
     $offline = if ($modelsReady) { '1' } else { '0' }
+    $noTranslate = if ($Mode -eq 'asr') { '1' } else { '0' }
 
     $runBat = @'
 @echo off
@@ -462,6 +477,7 @@ set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
 set "FR_TRANSLATOR_ROOT=%~dp0"
 set "FR_TRANSLATOR_EDITION=@EDITION@"
+set "FR_TRANSLATOR_DISABLE_TRANSLATE=@NO_TRANSLATE@"
 set "HF_HOME=%~dp0models"
 set "HUGGINGFACE_HUB_CACHE=%~dp0models\hub"
 set "HF_HUB_OFFLINE=@OFFLINE@"
@@ -511,7 +527,7 @@ if not "%EXITCODE%"=="0" echo [fr-translator] 程序退出码：%EXITCODE%
 pause
 exit /b %EXITCODE%
 '@
-    $runBat = $runBat.Replace('@EDITION@', $Mode).Replace('@OFFLINE@', $offline)
+    $runBat = $runBat.Replace('@EDITION@', $Mode).Replace('@OFFLINE@', $offline).Replace('@NO_TRANSLATE@', $noTranslate)
     Write-Utf8NoBom -Path (Join-Path $StagingRoot 'run.bat') -Content $runBat
 
     if ($WithGui) {
@@ -525,6 +541,7 @@ set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
 set "FR_TRANSLATOR_ROOT=%~dp0"
 set "FR_TRANSLATOR_EDITION=@EDITION@"
+set "FR_TRANSLATOR_DISABLE_TRANSLATE=@NO_TRANSLATE@"
 set "HF_HOME=%~dp0models"
 set "HUGGINGFACE_HUB_CACHE=%~dp0models\hub"
 set "HF_HUB_OFFLINE=@OFFLINE@"
@@ -539,13 +556,20 @@ if not "%EXITCODE%"=="0" echo [fr-translator] 程序退出码：%EXITCODE%
 pause
 exit /b %EXITCODE%
 '@
-        $runGui = $runGui.Replace('@EDITION@', $Mode).Replace('@OFFLINE@', $offline)
+        $runGui = $runGui.Replace('@EDITION@', $Mode).Replace('@OFFLINE@', $offline).Replace('@NO_TRANSLATE@', $noTranslate)
         Write-Utf8NoBom -Path (Join-Path $StagingRoot 'run-gui.bat') -Content $runGui
     }
 
     $exampleConfig = Join-Path $RepoRoot 'config.example.yaml'
     if (-not (Test-Path -LiteralPath $exampleConfig)) { throw "找不到 config.example.yaml" }
-    Copy-Item -LiteralPath $exampleConfig -Destination (Join-Path $StagingRoot 'config.yaml') -Force
+    if ($Mode -eq 'asr') {
+        $configText = Get-Content -LiteralPath $exampleConfig -Raw -Encoding UTF8
+        $configText = $configText.Replace('  enabled: true', '  enabled: false')
+        Write-Utf8NoBom -Path (Join-Path $StagingRoot 'config.yaml') -Content $configText
+    }
+    else {
+        Copy-Item -LiteralPath $exampleConfig -Destination (Join-Path $StagingRoot 'config.yaml') -Force
+    }
 
     $logsDir = Join-Path $StagingRoot 'logs'
     New-Item -ItemType Directory -Force -Path $logsDir | Out-Null

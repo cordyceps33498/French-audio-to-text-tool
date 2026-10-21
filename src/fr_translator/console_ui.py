@@ -55,6 +55,11 @@ class ConsoleUI:
         self._print(f"[{stamp}] 法语：{french}")
         self._print(f"[{stamp}] 中文：{chinese}")
 
+    def french_only(self, french: str) -> None:
+        """asr 轻量模式：只输出法语原文。"""
+
+        self._print(f"[{self._now()}] 法语：{french}")
+
     def translation_failed(self, french: str, reason: str = "") -> None:
         stamp = self._now()
         self._print(f"[{stamp}] 法语：{french}")

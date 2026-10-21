@@ -221,6 +221,8 @@ class AsrConfig:
 
 @dataclass
 class TranslateConfig:
+    # 关闭翻译时只输出法语识别原文（asr 轻量包使用）
+    enabled: bool = True
     # 官方文档中给出的直译模型。需要说明：截至 2026-10，Hugging Face 上
     # 并不存在 Helsinki-NLP/opus-mt-fr-zh 这个仓库（Helsinki-NLP 没有发布
     # 法语→中文的 OPUS-MT 直译模型）。因此默认开启 fallback，改用两段式：
@@ -273,7 +275,11 @@ def load_config(paths: AppPaths, extra_files: Sequence[str | Path] = ()) -> AppC
         _deep_merge(merged, data)
         sources.append(str(path))
 
-    return _build_config(merged, sources)
+    config = _build_config(merged, sources)
+    # asr 轻量包的 run.bat 会设置该变量；也方便源码调试时临时关闭翻译
+    if os.environ.get("FR_TRANSLATOR_DISABLE_TRANSLATE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        config.translate.enabled = False
+    return config
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -334,6 +340,7 @@ def _build_config(data: Mapping[str, Any], sources: Sequence[str]) -> AppConfig:
         cpu_threads=_get_int(asr_sec, "asr", "cpu_threads", AsrConfig.cpu_threads, errors),
     )
     mt = TranslateConfig(
+        enabled=_get_bool(mt_sec, "translate", "enabled", TranslateConfig.enabled, errors),
         model=_get_str(mt_sec, "translate", "model", TranslateConfig.model, errors),
         pivot_model=_get_str(mt_sec, "translate", "pivot_model", TranslateConfig.pivot_model, errors),
         pivot_target_model=_get_str(
@@ -540,7 +547,7 @@ def resolve_offline(
     """
 
     has_asr = paths.has_whisper(config.asr.model)
-    has_mt = has_translation_models(paths, config)
+    has_mt = True if not config.translate.enabled else has_translation_models(paths, config)
     notes: list[tuple[str, str]] = []
 
     if force_offline:
@@ -577,11 +584,13 @@ def apply_model_environment(paths: AppPaths, offline: bool) -> None:
 
 
 def detect_edition(paths: AppPaths, config: AppConfig) -> str:
-    """full / lite 只影响错误提示文案。"""
+    """full / lite / asr 只影响错误提示和日志文案。"""
 
     env = os.environ.get("FR_TRANSLATOR_EDITION", "").strip().lower()
-    if env in {"full", "lite"}:
+    if env in {"full", "lite", "asr"}:
         return env
+    if not config.translate.enabled:
+        return "asr" if paths.has_whisper(config.asr.model) else "lite"
     if paths.has_whisper(config.asr.model) and has_translation_models(paths, config):
         return "full"
     return "lite"
@@ -598,6 +607,11 @@ def has_translation_models(paths: AppPaths, config: AppConfig) -> bool:
 
 
 def model_missing_message(edition: str, model_desc: str) -> str:
+    if edition == "asr":
+        return (
+            f"{model_desc}缺失：识别包模型不完整，请重新下载 asr 包。\n"
+            "（asr 包只需要 faster-whisper small；也可以加 --online 联网补全。）"
+        )
     if edition == "full":
         return (
             f"{model_desc}缺失：模型文件不完整，请重新下载 full 包。\n"

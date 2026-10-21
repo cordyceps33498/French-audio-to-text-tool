@@ -142,6 +142,11 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--online", action="store_true", help="允许联网下载缺失的模型")
     group.add_argument("--offline", action="store_true", help="强制离线运行，缺模型直接报错")
     parser.add_argument(
+        "--no-translate",
+        action="store_true",
+        help="仅识别法语原文，不翻译（asr 轻量模式）",
+    )
+    parser.add_argument(
         "--wav",
         metavar="FILE",
         default=None,
@@ -198,6 +203,8 @@ def _run(args: argparse.Namespace, ui: ConsoleUI) -> int:
     if args.device:
         config.audio.device = args.device
         config.audio.device_id = ""
+    if args.no_translate:
+        config.translate.enabled = False
 
     log_file = _setup_logging(paths, config, debug=args.debug, ui=ui)
     logger.info("fr-translator %s 启动，根目录：%s", __version__, paths.root)

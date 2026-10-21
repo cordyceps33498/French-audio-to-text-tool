@@ -52,9 +52,11 @@ faster-whisper 识别 → OPUS-MT 翻译 → 控制台两行输出（可选 PyQt
 | 包 | 大小（约） | 是否含模型 | 适合谁 |
 | --- | --- | --- | --- |
 | `FrenchTranslatorPortable-lite.zip` | 350 MB | 否，首次运行联网下载 | 网络正常、想快速下载 |
-| `FrenchTranslatorPortable-full.zip` | 1.3 GB | 是（faster-whisper small + 两段式 OPUS-MT） | 纯离线 / 网络不稳定 / 放 U 盘 |
+| `FrenchTranslatorPortable-full.zip` | 1.3 GB | 是（faster-whisper small + 两段式 OPUS-MT） | 需要中文字幕、纯离线 |
+| `FrenchTranslatorPortable-asr.zip` | 780 MB | 是（仅 faster-whisper small） | 只要法语原文、想更轻量 |
 
-两个包功能完全一样，只是模型是否预置。
+lite/full 会输出“法语 + 中文”两行；**asr 包只输出法语原文**，不加载翻译模型，体积更小、
+启动更快。三个包都支持 `--local`。
 
 ### 2.2 三步启动
 
@@ -109,10 +111,38 @@ FrenchTranslatorPortable/
 ├── app/fr_translator/      # 应用代码
 ├── models/
 │   ├── faster-whisper/small/
-│   ├── hub/                # OPUS-MT 翻译模型的 HF 缓存
+│   ├── hub/                # OPUS-MT 翻译模型的 HF 缓存（asr 包没有这一层）
 │   └── silero-vad/silero_vad.onnx
 └── logs/
 ```
+
+### 2.6 只识别法语原文（asr 轻量包）
+
+`FrenchTranslatorPortable-asr.zip` 只保留“系统音频 → VAD 切句 → faster-whisper 法语识别”，
+不下载也不加载任何翻译模型，控制台只输出一行：
+
+```text
+[21:03:27] 法语：Bonjour à toutes et à tous, bienvenue dans ce documentaire.
+```
+
+它适合：只要法语听写/字幕原文、机器内存较小、想更快启动的场景。
+
+源码运行时等价于：
+
+```bat
+.venv\Scripts\python.exe -m fr_translator --no-translate
+```
+
+或者在 `config.yaml` 里设置：
+
+```yaml
+translate:
+  enabled: false
+```
+
+asr 包的 `run.bat` 已经自动设置 `FR_TRANSLATOR_DISABLE_TRANSLATE=1`，配置文件里也是
+`enabled: false`，不需要手工改。如果要重新开启翻译，删除该环境变量并准备翻译模型即可
+（但 asr 包本身不包含翻译模型）。
 
 ---
 
@@ -146,6 +176,7 @@ set PYTHONPATH=%CD%\src
 | `--device NAME_OR_ID` | 指定输出设备（名称或 soundcard 设备 id） |
 | `--offline` | 强制离线，缺模型直接报错 |
 | `--online` | 允许联网补全缺失模型 |
+| `--no-translate` | 只识别法语原文，不加载翻译模型（asr 模式） |
 | `--config FILE` | 额外配置文件（优先级最高，可多次指定） |
 | `--wav FILE` | 开发调试：从音频文件读取，不捕获系统音频 |
 | `--debug` | 输出调试日志和完整异常堆栈 |
@@ -354,6 +385,7 @@ fr-translator/
 ├── pyproject.toml
 ├── requirements.txt              # 开发用
 ├── requirements-portable.txt     # 便携包用（torch CPU 版）
+├── requirements-portable-asr.txt # asr 轻量包用（不含 transformers）
 ├── requirements-gui.txt          # 可选 GUI 依赖
 ├── config.example.yaml
 ├── run-dev.bat
@@ -390,20 +422,23 @@ powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode lite
 # full：含模型，约 1.3GB，纯离线
 powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode full
 
+# asr：只识别法语原文，约 780MB
+powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode asr
+
 # 可选：带 PyQt6 悬浮字幕
 powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode full -WithGui
 
 # 国内镜像
-powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode full -HfEndpoint https://hf-mirror.com
+powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode asr -HfEndpoint https://hf-mirror.com
 ```
 
 参数：
 
 | 参数 | 说明 |
 | --- | --- |
-| `-Mode lite\|full` | 必填 |
+| `-Mode lite\|full\|asr` | 必填；asr = 仅法语识别，不装翻译依赖和模型 |
 | `-SkipModels` | 不下载模型（CI 调试用） |
-| `-ModelsSource models` | full 模式直接复制现成模型目录，跳过下载（可指向任意包含 `faster-whisper/`、`silero-vad/`、`hub/Helsinki-NLP--*` 的目录） |
+| `-ModelsSource models` | 直接复制现成模型目录，跳过下载；asr 只复制 `faster-whisper/` 和 `silero-vad/` |
 | `-PythonVersion 3.10.11` | 嵌入式 Python 版本 |
 | `-OutputDir dist` | 输出目录 |
 | `-HfEndpoint URL` | 传给 prepare_models 的镜像 |
@@ -415,11 +450,12 @@ powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode full -
 1. 下载 `python-3.10.11-embed-amd64.zip`（缓存到 `portable\.cache`）；
 2. 解压到 `python/`，修改 `python310._pth`（`import site` + `..\app` + `Lib\site-packages`）；
 3. 用固定版本的 `pip-24.2` wheel 引导 pip（无系统 Python 时回退到 `get-pip.py`），
-   再 `pip install --target python\Lib\site-packages -r requirements-portable.txt`；
+   再 `pip install --target python\Lib\site-packages -r requirements-portable.txt`
+   （asr 模式使用 `requirements-portable-asr.txt`，不含 transformers/sentencepiece）；
 4. 拷贝 `src/fr_translator` 到 `app/`；
 5. full 模式用**嵌入式 Python** 运行 `scripts/prepare_models.py`（或 `-ModelsSource` 直接复制），
-   模型落到 `models/`；
-6. 生成 `run.bat`、`config.yaml`、`logs/`；
+   模型落到 `models/`；asr 模式加 `--skip-translate`，只下载 faster-whisper + silero-vad；
+6. 生成 `run.bat`、`config.yaml`、`logs/`（asr 的 run.bat 会设置 `FR_TRANSLATOR_DISABLE_TRANSLATE=1`）；
 7. 打包到 `dist/FrenchTranslatorPortable-<Mode>.zip`。
 
 > 说明：Python embeddable 没有 `ensurepip`，构建脚本用官方 `get-pip.py` / 固定 pip wheel 等价替代；
@@ -480,16 +516,18 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 | 产物 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `8c8b020e715beee186b057091bf0fc7ecf126a2c659edd25a796e48a74d803de` |
-| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `0d3cf36840e3c53d5ea7918d7253e9e3a0abe53db82783663a5e3b6cbce60903` |
+| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `e442c2f882f2e420a02bfc5fbf44108040cb871cf5deacab87a1e275ffe7235d` |
+| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `ea2a5ea8080b8aa16caddd2f720741879fea24911c7ed171d9c6ffa1de27e6ae` |
+| `FrenchTranslatorPortable-asr.zip` | 779 MB（解压 2.1 GB） | `84ee04be777cd8bdff926d58f0d2c52de72641bfdd3e467781de9c161a080dc1` |
 
 已执行的验证：
 
-- 32 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、识别队列、空识别、翻译失败降级、纯音乐）；
+- 33 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、识别队列、仅识别模式、空识别、翻译失败降级、纯音乐）；
 - 用 MMS-TTS 合成 4 句法语（23.1 秒，含一句 8 秒长句），`python -m fr_translator --wav`
   输出 4 组“法语/中文”，长句没有被从中间截断；
 - 用 `winsound` 播放该 WAV，通过系统 loopback 捕获，实际输出字幕（非文件模拟）；
 - full 包解压后断网运行 `run.bat --wav`，正常加载本地模型并翻译；
+- asr 包解压后运行 `run.bat --wav`，只输出 4 行“法语：…”，不加载翻译模型；
 - `run.bat --local` 成功把包复制到 `%TEMP%` 并从临时目录启动；
 - 设备选择结果写入用户配置后，第二次启动不再提示，直接监听上次选择的设备；
 - 纯音乐（6 秒和弦）运行无输出、无异常，退出码 0；

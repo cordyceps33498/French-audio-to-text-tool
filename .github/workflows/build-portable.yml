@@ -60,7 +60,7 @@ jobs:
         run: ./scripts/build_portable.ps1 -Mode lite
 
       - name: 上传 lite artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FrenchTranslatorPortable-lite
           path: dist/FrenchTranslatorPortable-lite.zip
@@ -79,7 +79,7 @@ jobs:
 
       - name: 上传 full artifact
         if: ${{ github.event_name == 'push' || inputs.build_full }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FrenchTranslatorPortable-full
           path: dist/FrenchTranslatorPortable-full.zip
@@ -98,7 +98,7 @@ jobs:
 
       - name: 上传 asr artifact
         if: ${{ github.event_name == 'push' || inputs.build_full }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FrenchTranslatorPortable-asr
           path: dist/FrenchTranslatorPortable-asr.zip

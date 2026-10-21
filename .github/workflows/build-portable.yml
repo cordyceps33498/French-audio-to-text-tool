@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Python 3.10（仅用于下载兜底）
         uses: actions/setup-python@v5

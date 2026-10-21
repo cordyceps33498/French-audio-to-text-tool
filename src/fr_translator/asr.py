@@ -7,6 +7,7 @@ import re
 
 import numpy as np
 
+from ._compat import ensure_av_stub
 from .config import AsrConfig, AppPaths, model_missing_message
 from .errors import AsrError, DependencyError, ModelLoadError, ModelMissingError
 
@@ -50,6 +51,7 @@ class WhisperASR:
     def load(self) -> None:
         if self._model is not None:
             return
+        ensure_av_stub()
         try:
             from faster_whisper import WhisperModel  # type: ignore import-not-found
         except ImportError as exc:  # pragma: no cover

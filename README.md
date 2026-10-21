@@ -51,9 +51,9 @@ faster-whisper 识别 → OPUS-MT 翻译 → 控制台两行输出（可选 PyQt
 
 | 包 | 大小（约） | 是否含模型 | 适合谁 |
 | --- | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 350 MB | 否，首次运行联网下载 | 网络正常、想快速下载 |
-| `FrenchTranslatorPortable-full.zip` | 1.3 GB | 是（faster-whisper small + 两段式 OPUS-MT） | 需要中文字幕、纯离线 |
-| `FrenchTranslatorPortable-asr.zip` | 780 MB | 是（仅 faster-whisper small） | 只要法语原文、想更轻量 |
+| `FrenchTranslatorPortable-lite.zip` | 327 MB | 否，首次运行联网下载 | 网络正常、想快速下载 |
+| `FrenchTranslatorPortable-full.zip` | 1.27 GB | 是（faster-whisper small + 两段式 OPUS-MT） | 需要中文字幕、纯离线 |
+| `FrenchTranslatorPortable-asr.zip` | 754 MB | 是（仅 faster-whisper small） | 只要法语原文、想更轻量 |
 
 lite/full 会输出“法语 + 中文”两行；**asr 包只输出法语原文**，不加载翻译模型，体积更小、
 启动更快。三个包都支持 `--local`。
@@ -178,7 +178,7 @@ set PYTHONPATH=%CD%\src
 | `--online` | 允许联网补全缺失模型 |
 | `--no-translate` | 只识别法语原文，不加载翻译模型（asr 模式） |
 | `--config FILE` | 额外配置文件（优先级最高，可多次指定） |
-| `--wav FILE` | 开发调试：从音频文件读取，不捕获系统音频 |
+| `--wav FILE` | 开发调试：从 PCM WAV 文件读取（16k 单声道最佳），不捕获系统音频 |
 | `--debug` | 输出调试日志和完整异常堆栈 |
 
 模型默认下载到仓库的 `models/`（与便携包布局一致）：
@@ -432,13 +432,13 @@ fr-translator/
 ## 9. 构建便携包
 
 ```powershell
-# lite：无模型，约 350MB
+# lite：无模型，约 327MB
 powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode lite
 
-# full：含模型，约 1.3GB，纯离线
+# full：含模型，约 1.27GB，纯离线
 powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode full
 
-# asr：只识别法语原文，约 780MB
+# asr：只识别法语原文，约 754MB
 powershell -ExecutionPolicy Bypass -File scripts\build_portable.ps1 -Mode asr
 
 # 可选：带 PyQt6 悬浮字幕
@@ -532,13 +532,13 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 | 产物 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `1e2ed1215425b2bb9f3d7457f74aa97ef3615689462d14f61ad2c39762f28581` |
-| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `fb7cb36990d0d79390cad26e65752661899901e18efaa36367cf966fc76adee9` |
-| `FrenchTranslatorPortable-asr.zip` | 779 MB（解压 2.1 GB） | `a1872e396db9d3563d6fa0258058bd8c418004d644f7386eec65143c04e6cdc2` |
+| `FrenchTranslatorPortable-lite.zip` | 326.7 MB（解压 1.51 GB） | `6f999101ba0ab68728c2cf0b65ae295c403ea26abdca127e9bb3e3e57cb2a320` |
+| `FrenchTranslatorPortable-full.zip` | 1.27 GB（解压 2.54 GB） | `4fdc6933be8c8c3900d96b11901eef286274e1a1f43de8fde8c1135d672201df` |
+| `FrenchTranslatorPortable-asr.zip` | 754 MB（解压 2.0 GB） | `1c703f8b420f4258ca0c54e1954c1d5168bb4e989aa66d5876bb57afde896407` |
 
 已执行的验证：
 
-- 33 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、识别队列、仅识别模式、空识别、翻译失败降级、纯音乐）；
+- 35 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、识别队列、仅识别模式、WAV 读取、空识别、翻译失败降级、纯音乐）；
 - 用 MMS-TTS 合成 4 句法语（23.1 秒，含一句 8 秒长句），`python -m fr_translator --wav`
   输出 4 组“法语/中文”，长句没有被从中间截断；
 - 用 `winsound` 播放该 WAV，通过系统 loopback 捕获，实际输出字幕（非文件模拟）；

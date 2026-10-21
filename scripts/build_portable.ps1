@@ -460,6 +460,25 @@ function Test-ModelsReady {
     return ($hasDirect -or ($hasFrEn -and $hasEnZh))
 }
 
+function Step-Trim {
+    Write-Step "移除 PyAV/FFmpeg（避免发布包携带 GPL 的 FFmpeg）"
+    $targets = @(
+        (Join-Path $SitePackages 'av'),
+        (Join-Path $SitePackages 'av.libs')
+    )
+    $targets += Get-ChildItem -LiteralPath $SitePackages -Directory -Filter 'av-*.dist-info' -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName }
+    foreach ($target in $targets) {
+        if (Test-Path -LiteralPath $target) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+            Write-Info ("已删除 {0}" -f $target)
+        }
+    }
+
+    $checkCode = 'import sys, types, importlib.machinery; m=types.ModuleType("av"); m.__spec__=importlib.machinery.ModuleSpec("av", loader=None); sys.modules["av"]=m; import faster_whisper; print(1)'
+    Invoke-External -FilePath (Join-Path $PyDir 'python.exe') -Arguments @('-c', $checkCode) -Description '校验无 PyAV 的识别依赖'
+}
+
 function Step-Launchers {
     Write-Step "生成 run.bat / config.yaml / logs"
     $modelsReady = Test-ModelsReady
@@ -640,6 +659,7 @@ try {
     Step-Pip
     Step-App
     Step-Models
+    Step-Trim
     Step-Launchers
     Step-Zip
 

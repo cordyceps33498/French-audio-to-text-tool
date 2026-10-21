@@ -27,6 +27,11 @@
 - **MPL-2.0**：`certifi`、`tqdm`（文件级弱 copyleft，未修改，源码可从 PyPI 获取）；
 - 未发现 GPL/AGPL/LGPL 依赖。
 
+> **PyAV/FFmpeg**：`av` wheel 自带 FFmpeg（含 GPL 的 x264/x265），仅在构建/开发环境安装。
+> 构建脚本 `Step-Trim` 会在打包前删除 `av`、`av.libs` 与 dist-info；发布 zip 不包含
+> PyAV/FFmpeg，程序用标准库 `wave` 解码调试 WAV，并用占位模块满足 faster-whisper 导入。
+> 详见 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)。
+
 详见 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) 与 [LICENSES/](../LICENSES/)。
 
 已处理：
@@ -55,6 +60,7 @@
 | 不安全反序列化 | 只加载固定 HF 仓库的模型；不加载用户指定 `.bin`；`.bin` 属信任边界，已在 SECURITY 说明 |
 | 网络 | 仅模型下载；HTTPS；无遥测；无音频上传 |
 | 日志隐私 | **已修复**：不再记录识别/翻译正文，只记录耗时/字符数 |
+| PyAV/FFmpeg | **已移除**：构建打包前删除 `av`/`av.libs`；调试 WAV 改用标准库 `wave`；发布包不含 GPL FFmpeg |
 | 文件路径 | 不硬编码绝对路径；模型/日志从根目录解析 |
 | 设备 | 不自动切换默认输出设备，不修改系统音频设置 |
 | 依赖漏洞 | 版本较旧（torch 2.4.1、transformers 4.44.2）；已加 Dependabot + CodeQL，建议发布前评估升级 |

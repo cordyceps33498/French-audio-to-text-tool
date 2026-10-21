@@ -19,7 +19,6 @@
 
 | 包 | 版本 | 许可证 |
 | --- | --- | --- |
-| av (PyAV) | 12.3.0 | BSD-3-Clause |
 | certifi | 2026.10.19 | MPL-2.0 |
 | cffi | 2.1.1 | MIT-0 |
 | charset-normalizer | 3.5.2 | MIT |
@@ -93,6 +92,16 @@
 
 其余组件的完整许可证文本随对应 wheel 一起位于 `python/Lib/site-packages/*.dist-info/`。
 如果你重新分发便携包，请保留该目录下的 LICENSE/COPYING 文件与本声明。
+
+### PyAV / FFmpeg（不随发布包分发）
+
+构建时为了满足 `faster-whisper` 的导入会安装 `av`（PyAV）。PyPI 的 Windows wheel
+自带 FFmpeg 动态库，其中可能包含 GPL 的 x264/x265 等组件。**构建脚本会在打包前删除
+`av`、`av.libs` 与对应 dist-info**；程序只处理 numpy 音频，不调用 `decode_audio`，
+并用占位模块满足导入。因此发布 zip 不包含 PyAV/FFmpeg 二进制。
+
+源码开发者执行 `pip install -r requirements.txt` 时仍会安装 `av`；它只在本机开发环境，
+不会进入 Release 包。如果你要自行分发开发环境，请单独评估 FFmpeg 的许可证。
 
 ## 5. MPL-2.0 说明
 

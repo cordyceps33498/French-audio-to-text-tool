@@ -21,6 +21,22 @@ FAIL = "[失败]"
 WARN = "[警告]"
 
 
+def ensure_av_stub() -> None:
+    """便携包删除了 PyAV；给 faster-whisper 的导入提供一个占位模块。"""
+
+    if "av" in sys.modules:
+        return
+    try:
+        import av  # noqa: F401
+    except ImportError:
+        import importlib.machinery
+        import types
+
+        module = types.ModuleType("av")
+        module.__spec__ = importlib.machinery.ModuleSpec("av", loader=None)
+        sys.modules["av"] = module
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="fr-translator 环境自检")
@@ -94,6 +110,7 @@ def _has_model(hub: Path, model_id: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_av_stub()
     args = parse_args(argv)
     root = Path(args.root).expanduser().resolve()
     # 与大程序保持一致，避免 transformers 去写默认的 ~/.cache

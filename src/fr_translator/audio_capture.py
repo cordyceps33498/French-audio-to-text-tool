@@ -192,90 +192,85 @@ class LoopbackCapture:
 
 
 class WavFileCapture:
-    """调试用：把音频文件当作 16kHz 单声道音频源。
+    """调试用：把 PCM WAV 当作 16kHz 单声道音频源。
 
     仅用于开发验证（``--wav``），正式使用仍然是捕获系统音频。
-    依赖 faster-whisper 已经带入的 PyAV。
+    使用标准库 ``wave`` 解码，不依赖 PyAV/FFmpeg，因此发布包不会夹带
+    GPL 的 FFmpeg 二进制。支持 8/16/24/32-bit PCM，多声道会下混为单声道，
+    采样率不是 16kHz 时做线性重采样。
     """
 
     def __init__(self, path: str | Path, *, samplerate: int = 16000) -> None:
         self.path = Path(path)
         self.samplerate = samplerate
-        self._container = None
-        self._resampler = None
-        self._stream = None
+        self._audio: np.ndarray | None = None
+        self._position = 0
 
     def __enter__(self) -> "WavFileCapture":
         if not self.path.is_file():
             raise AudioCaptureError(f"音频文件不存在：{self.path}")
         try:
-            import av  # type: ignore import-not-found
-        except ImportError as exc:  # pragma: no cover
-            raise DependencyError(
-                "缺少依赖 av（PyAV），无法读取音频文件。\n"
-                "请执行 pip install -r requirements.txt 后重试。"
-            ) from exc
-        try:
-            self._container = av.open(str(self.path))
-            self._stream = self._container.streams.audio[0]
-            self._resampler = av.AudioResampler(format="flt", layout="mono", rate=self.samplerate)
+            import wave
+
+            with wave.open(str(self.path), "rb") as handle:
+                channels = handle.getnchannels()
+                width = handle.getsampwidth()
+                rate = handle.getframerate()
+                frames = handle.getnframes()
+                raw = handle.readframes(frames)
         except Exception as exc:
-            self.close()
-            raise AudioCaptureError(f"无法打开音频文件：{self.path}\n详细信息：{exc}") from exc
+            raise AudioCaptureError(
+                f"无法读取 WAV 文件：{self.path}\n"
+                "调试模式只支持 PCM WAV（不支持 MP3/OGG/FLAC）。\n"
+                f"详细信息：{exc}"
+            ) from exc
+
+        if width == 1:
+            data = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
+        elif width == 2:
+            data = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+        elif width == 3:
+            triples = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3).astype(np.int32)
+            values = triples[:, 0] | (triples[:, 1] << 8) | (triples[:, 2] << 16)
+            values = np.where(values & 0x800000, values - 0x1000000, values)
+            data = values.astype(np.float32) / 8388608.0
+        elif width == 4:
+            data = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483648.0
+        else:
+            raise AudioCaptureError(f"不支持的 WAV 位深：{width * 8} bit（{self.path}）")
+
+        if channels > 1:
+            data = data.reshape(-1, channels).mean(axis=1)
+
+        if rate != self.samplerate and data.size:
+            old_positions = np.arange(data.size, dtype=np.float64) / float(rate)
+            new_size = max(1, int(round(data.size * self.samplerate / rate)))
+            new_positions = np.arange(new_size, dtype=np.float64) / float(self.samplerate)
+            data = np.interp(new_positions, old_positions, data).astype(np.float32)
+
+        self._audio = np.ascontiguousarray(data, dtype=np.float32)
+        self._position = 0
         return self
 
     def close(self) -> None:
-        container, self._container = self._container, None
-        self._resampler = None
-        self._stream = None
-        if container is not None:
-            try:
-                container.close()
-            except Exception:
-                pass
+        self._audio = None
+        self._position = 0
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
     def frames(self, stop_event: threading.Event | None = None) -> Iterator[np.ndarray]:
-        if self._container is None:
+        if self._audio is None:
             self.__enter__()
-        assert self._container is not None and self._stream is not None and self._resampler is not None
-        try:
-            for frame in self._container.decode(self._stream):
-                if stop_event is not None and stop_event.is_set():
-                    return
-                for converted in self._resample(frame):
-                    block = _as_mono_float32(converted)
-                    if block.size:
-                        yield block
-            # flush 重采样器里残留的数据
-            for converted in self._resample(None):
-                block = _as_mono_float32(converted)
-                if block.size:
-                    yield block
-        except AudioCaptureError:
-            raise
-        except Exception as exc:
-            raise AudioCaptureError(f"读取音频文件失败：{self.path}\n详细信息：{exc}") from exc
-
-    def _resample(self, frame) -> list[np.ndarray]:
-        assert self._resampler is not None
-        try:
-            result = self._resampler.resample(frame)
-        except Exception as exc:
-            raise AudioCaptureError(f"音频重采样失败：{self.path}\n详细信息：{exc}") from exc
-        if result is None:
-            return []
-        if isinstance(result, list):
-            frames = result
-        else:  # PyAV < 12 返回单个 frame
-            frames = [result]
-        arrays: list[np.ndarray] = []
-        for item in frames:
-            array = item.to_ndarray()
-            arrays.append(np.ascontiguousarray(array.reshape(-1), dtype=np.float32))
-        return arrays
+        assert self._audio is not None
+        block = 384
+        while self._position < self._audio.size:
+            if stop_event is not None and stop_event.is_set():
+                return
+            chunk = self._audio[self._position : self._position + block]
+            self._position += chunk.size
+            if chunk.size:
+                yield chunk
 
     def describe(self) -> str:
         return f"音频文件：{self.path}"

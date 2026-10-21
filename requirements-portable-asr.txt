@@ -21,4 +21,5 @@ setuptools==75.8.0
 silero-vad==5.1.2
 onnxruntime==1.19.2
 protobuf==4.25.5
+# Build-time only: removed from portable packages (see Step-Trim)
 av==12.3.0

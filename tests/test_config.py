@@ -35,7 +35,8 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(config.audio.samplerate, 16000)
             self.assertEqual(config.audio.block_frames, 384)
             self.assertTrue(config.asr.vad_filter)
-            self.assertEqual(config.vad.max_utterance_s, 12.0)
+            self.assertTrue(config.asr.use_context)
+            self.assertEqual(config.vad.max_utterance_s, 20.0)
 
     def test_merge_order_user_overrides_portable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

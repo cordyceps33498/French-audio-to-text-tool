@@ -199,12 +199,12 @@ class AudioConfig:
 
 @dataclass
 class VadConfig:
-    threshold: float = 0.5
-    min_silence_ms: int = 500
+    threshold: float = 0.45
+    min_silence_ms: int = 700
     min_speech_ms: int = 250
-    speech_pad_ms: int = 200
-    pre_roll_ms: int = 200
-    max_utterance_s: float = 12.0
+    speech_pad_ms: int = 300
+    pre_roll_ms: int = 300
+    max_utterance_s: float = 20.0
 
 
 @dataclass
@@ -214,6 +214,8 @@ class AsrConfig:
     compute_type: str = "int8"
     beam_size: int = 5
     vad_filter: bool = True
+    # 把上一句文本作为 initial_prompt，减少句子被切开时的首词丢失。
+    use_context: bool = True
     cpu_threads: int = 0
 
 
@@ -328,6 +330,7 @@ def _build_config(data: Mapping[str, Any], sources: Sequence[str]) -> AppConfig:
         compute_type=_get_str(asr_sec, "asr", "compute_type", AsrConfig.compute_type, errors),
         beam_size=_get_int(asr_sec, "asr", "beam_size", AsrConfig.beam_size, errors),
         vad_filter=_get_bool(asr_sec, "asr", "vad_filter", AsrConfig.vad_filter, errors),
+        use_context=_get_bool(asr_sec, "asr", "use_context", AsrConfig.use_context, errors),
         cpu_threads=_get_int(asr_sec, "asr", "cpu_threads", AsrConfig.cpu_threads, errors),
     )
     mt = TranslateConfig(

@@ -19,18 +19,18 @@ audio:
   block_ms: 24
 
 vad:
-  # silero-vad 的语音概率阈值；越大越严格。
-  threshold: 0.5
-  # 连续静音超过该时长则结束一句。
-  min_silence_ms: 500
+  # silero-vad 的语音概率阈值；越大越严格。0.45 对轻声句尾更宽容。
+  threshold: 0.45
+  # 连续静音超过该时长才结束一句；700ms 可避免逗号处把句子切断。
+  min_silence_ms: 700
   # 一句话的有效语音短于该时长则丢弃（过滤咳嗽、敲击声）。
   min_speech_ms: 250
   # 切句时在语音前后保留的余量，避免把首尾音切掉。
-  speech_pad_ms: 200
+  speech_pad_ms: 300
   # 触发前预录的音频长度，避免句首被切掉。
-  pre_roll_ms: 200
+  pre_roll_ms: 300
   # 单句最长时长；超长会强制切分，防止一直累积。
-  max_utterance_s: 12
+  max_utterance_s: 20
 
 asr:
   # faster-whisper 模型名（便携包内为 models/faster-whisper/<model>）。
@@ -40,6 +40,8 @@ asr:
   beam_size: 5
   # 开启 faster-whisper 内置 VAD，作为 silero-vad 之后的二次过滤。
   vad_filter: true
+  # 用上一句文本作为 initial_prompt，减少句子被切开时的首词丢失。
+  use_context: true
   # 0 表示由 ctranslate2 自动决定线程数。
   cpu_threads: 0
 

@@ -175,8 +175,8 @@ audio:
   device: auto        # 输出设备；auto 表示首次运行时交互选择
   block_ms: 24        # 每次读取 24ms
 vad:
-  min_silence_ms: 500 # 静音超过 500ms 切句
-  max_utterance_s: 12 # 单句最长 12s
+  min_silence_ms: 700 # 静音超过 700ms 才切句，避免逗号处截断
+  max_utterance_s: 20 # 单句最长 20s
 asr:
   model: small
   compute_type: int8
@@ -284,12 +284,33 @@ lite 包遇到模型下载失败时会提示：
 
 CPU 模式下整体延迟约 **2~5 秒**，来源：
 
-1. 第一句要等 500ms 静音才切句；
+1. 第一句要等 700ms 静音才切句；
 2. whisper small 在 CPU 上推理需要时间；
 3. 翻译模型再花几百毫秒。
 
-可以调小 `vad.min_silence_ms`（例如 350）让切句更快，但句子可能被切碎、翻译质量下降。
+可以调小 `vad.min_silence_ms`（例如 500）让切句更快，但句子可能被切碎、翻译质量下降。
 想要更低延迟需要 GPU 或更小的模型（本工具默认不提供）。
+
+### 6.5.1 识别漏词、句子被从中间截断
+
+2026-10-21 的版本做了两项针对性修复：
+
+1. **录音与识别解耦**：以前 ASR/翻译（2~5 秒）直接阻塞录音循环，loopback 缓冲区溢出会丢掉
+   整段音频；现在录音线程只做 VAD，切好的句子进队列，由独立识别线程处理，录音不中断。
+2. **更宽容的切句**：静音阈值从 500ms 调到 700ms，前后保留 300ms，单句上限 20s，
+   并把上一句文本作为 `initial_prompt`，减少句首/句尾丢词。
+
+如果仍然觉得切得太碎，可以在 `config.yaml` 里调大：
+
+```yaml
+vad:
+  min_silence_ms: 900   # 句子更长，但字幕延迟增加
+  speech_pad_ms: 400
+  pre_roll_ms: 400
+```
+
+如果识别速度跟不上（控制台出现“识别速度跟不上，已丢弃最早的一句”），可降低
+`asr.beam_size`（如 3）或改用更小的模型；正常情况下不会触发。
 
 ### 6.6 播放纯音乐时输出乱码/幻听
 
@@ -459,20 +480,24 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 | 产物 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `a0a26b2f8f4f3ce5b7777bd279453c5226819fcc73768d2ba54397223a98c186` |
-| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `ddf45e211df9d082acdb02c25c7d1929b1f85316ef3863aee6a048b1242f2020` |
+| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `8c8b020e715beee186b057091bf0fc7ecf126a2c659edd25a796e48a74d803de` |
+| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `0d3cf36840e3c53d5ea7918d7253e9e3a0abe53db82783663a5e3b6cbce60903` |
 
 已执行的验证：
 
-- 29 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、空识别、翻译失败降级、纯音乐）；
-- 用 MMS-TTS 合成 3 句法语（13.9 秒），`python -m fr_translator --wav` 输出 3 组
-  “法语/中文”，识别文本与原文基本一致；
-- 用 `winsound` 播放该 WAV，通过系统 loopback 捕获，实际输出 3 组字幕（非文件模拟）；
+- 32 个 `unittest` 全部通过（配置合并/校验、设备匹配、VAD 切句、识别队列、空识别、翻译失败降级、纯音乐）；
+- 用 MMS-TTS 合成 4 句法语（23.1 秒，含一句 8 秒长句），`python -m fr_translator --wav`
+  输出 4 组“法语/中文”，长句没有被从中间截断；
+- 用 `winsound` 播放该 WAV，通过系统 loopback 捕获，实际输出字幕（非文件模拟）；
 - full 包解压后断网运行 `run.bat --wav`，正常加载本地模型并翻译；
 - `run.bat --local` 成功把包复制到 `%TEMP%` 并从临时目录启动；
 - 设备选择结果写入用户配置后，第二次启动不再提示，直接监听上次选择的设备；
 - 纯音乐（6 秒和弦）运行无输出、无异常，退出码 0；
 - 两个 zip 均通过 `ZipFile.testzip()` 完整性校验。
+
+> **2026-10-21 23:20 修复**：录音与识别解耦——ASR/翻译不再阻塞 loopback 读取；
+> 静音阈值 700ms、前后 padding 300ms、单句上限 20s，并加入上一句上下文提示。
+> 这版专门解决“漏词/句子从中间截断”。
 
 > **2026-10-21 15:40 修复**：中文路径下 `sentencepiece` 的窄字符文件 API 会报
 > `Not found: ...source.spm`，导致翻译模型加载失败。现已改为 Python 读取 `.spm` 字节并

@@ -40,6 +40,8 @@ class WhisperASR:
         self.offline = offline
         self.edition = edition
         self._model = None
+        # 上一句识别文本，作为下一句的 initial_prompt；只保留末尾一小段
+        self._context = ""
 
     @property
     def is_loaded(self) -> bool:
@@ -110,11 +112,14 @@ class WhisperASR:
                 task="transcribe",
                 beam_size=self.config.beam_size,
                 vad_filter=self.config.vad_filter,
-                vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 100},
+                # 我们的 silero-vad 已经切好句子，这里只做一次温和的二次过滤，
+                # 不要把句尾轻声再削掉。
+                vad_parameters={"min_silence_duration_ms": 700, "speech_pad_ms": 300},
                 condition_on_previous_text=False,
+                initial_prompt=self._context or None,
                 without_timestamps=True,
-                no_speech_threshold=0.6,
-                log_prob_threshold=-1.0,
+                no_speech_threshold=0.8,
+                log_prob_threshold=-2.0,
             )
             parts: list[str] = []
             for segment in segments:
@@ -125,14 +130,18 @@ class WhisperASR:
                     logger.debug("丢弃疑似幻听文本：%s", text)
                     continue
                 # 高 no_speech 概率 + 低置信度的片段通常是音乐/噪声
-                if getattr(segment, "no_speech_prob", 0.0) > 0.85 and getattr(segment, "avg_logprob", 0.0) < -1.2:
+                if getattr(segment, "no_speech_prob", 0.0) > 0.9 and getattr(segment, "avg_logprob", 0.0) < -1.5:
                     logger.debug("丢弃低置信度片段：%s", text)
                     continue
                 parts.append(text)
         except Exception as exc:
             raise AsrError(f"语音识别失败：{exc}") from exc
 
-        return _WHITESPACE.sub(" ", " ".join(parts)).strip()
+        result = _WHITESPACE.sub(" ", " ".join(parts)).strip()
+        if result and self.config.use_context:
+            # 只保留最后 ~160 个字符，避免 prompt 无限增长
+            self._context = (self._context + " " + result).strip()[-160:]
+        return result
 
 
 def _is_hallucination(text: str) -> bool:

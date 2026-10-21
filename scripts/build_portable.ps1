@@ -596,11 +596,6 @@ try {
     Write-Host ("输出目录  ：{0}" -f $OutputDir)
 
     New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
-    # 某些受控环境/杀软会锁住系统临时目录，导致 pip 解包 0 字节或拒绝访问；
-    # 统一把 TEMP 指到构建缓存目录，路径可预测、清理方便。
-    $env:TMP = Join-Path $CacheDir 'tmp'
-    $env:TEMP = $env:TMP
-    New-Item -ItemType Directory -Force -Path $env:TMP | Out-Null
     if (Test-Path -LiteralPath $StagingRoot) {
         Write-Step "清理旧的 staging 目录"
         Remove-Item -LiteralPath $StagingRoot -Recurse -Force

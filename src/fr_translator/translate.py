@@ -15,27 +15,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import os
-import shutil
-import tempfile
-from pathlib import Path
 
 from .config import AppPaths, TranslateConfig, model_missing_message
 from .errors import DependencyError, ModelLoadError, ModelMissingError, TranslationError
 
 logger = logging.getLogger("fr_translator.translate")
-
-# sentencepiece 的 C++ 实现使用窄字符文件 API，Windows 下无法打开含中文的路径。
-# 分词器只需要 3~4 个小文件，复制到纯 ASCII 的临时目录即可。
-_TOKENIZER_FILES = (
-    "vocab.json",
-    "source.spm",
-    "target.spm",
-    "tokenizer_config.json",
-    "special_tokens_map.json",
-)
 
 
 class MarianTranslator:
@@ -86,6 +71,7 @@ class MarianTranslator:
         self._torch = torch
         self._marian_model = MarianMTModel
         self._marian_tokenizer = MarianTokenizer
+        _install_sentencepiece_bytes_loader()
 
         primary_local = self.paths.has_translation(self.config.model)
         pivot_local = self.paths.has_translation(
@@ -161,10 +147,9 @@ class MarianTranslator:
 
         # 从平铺目录加载，避免 HF 缓存的 blobs/symlink 在 Windows 上
         # 因“没有创建符号链接的特权”而留下 0 字节文件。
-        tokenizer_dir = _ascii_tokenizer_dir(local_dir)
-        logger.info("加载翻译模型 %s（目录=%s，分词器=%s）", model_id, local_dir, tokenizer_dir)
+        logger.info("加载翻译模型 %s（目录=%s）", model_id, local_dir)
         tokenizer = self._marian_tokenizer.from_pretrained(
-            str(tokenizer_dir),
+            str(local_dir),
             local_files_only=True,
             clean_up_tokenization_spaces=False,
         )
@@ -255,51 +240,39 @@ class MarianTranslator:
         return (result[0] if result else "").strip()
 
 
-def _ascii_tokenizer_dir(model_dir: Path) -> Path:
-    """sentencepiece 打不开含中文的路径，因此把分词器文件复制到 ASCII 临时目录。"""
+def _install_sentencepiece_bytes_loader() -> None:
+    """让 MarianTokenizer 用字节加载 sentencepiece 模型。
 
-    if str(model_dir).isascii():
-        return model_dir
+    sentencepiece 的 C++ 层在 Windows 上使用窄字符文件 API：路径含中文时，
+    即使 source.spm 确实存在，LoadFromFile 也会报 “Not found”。
+    改为 Python 读 bytes，再调用 LoadFromSerializedProto，彻底绕开文件 API。
+    """
 
-    base = _ascii_temp_base()
-    digest = hashlib.sha1(str(model_dir).encode("utf-8")).hexdigest()[:16]
-    target = base / digest
-    target.mkdir(parents=True, exist_ok=True)
-    for name in _TOKENIZER_FILES:
-        source = model_dir / name
-        if not source.is_file():
-            continue
-        destination = target / name
+    try:
+        import sentencepiece as spm  # type: ignore import-not-found
+        from transformers.models.marian import tokenization_marian  # type: ignore import-not-found
+    except ImportError:  # pragma: no cover - 依赖由 load() 保证
+        return
+
+    if getattr(tokenization_marian, "_fr_translator_bytes_loader", False):
+        return
+
+    original = getattr(tokenization_marian, "load_spm", None)
+
+    def load_spm(path, sp_model_kwargs):  # noqa: ANN001
+        processor = spm.SentencePieceProcessor(**sp_model_kwargs)
         try:
-            if (
-                destination.is_file()
-                and destination.stat().st_size == source.stat().st_size
-                and destination.stat().st_mtime >= source.stat().st_mtime
-            ):
-                continue
-            shutil.copy2(source, destination)
-        except OSError as exc:
-            logger.warning("复制分词器文件失败：%s -> %s（%s）", source, destination, exc)
-    return target
+            with open(path, "rb") as handle:
+                processor.LoadFromSerializedProto(handle.read())
+        except Exception:
+            if original is None:
+                raise
+            # 极少数损坏文件/特殊模型，退回 transformers 原始实现
+            return original(path, sp_model_kwargs)
+        return processor
 
-
-def _ascii_temp_base() -> Path:
-    candidates = [Path(tempfile.gettempdir())]
-    public = os.environ.get("PUBLIC")
-    if public:
-        candidates.append(Path(public) / "fr-translator-tokenizer")
-    for candidate in candidates:
-        if not str(candidate).isascii():
-            continue
-        try:
-            candidate.mkdir(parents=True, exist_ok=True)
-            probe = candidate / ".write-test"
-            probe.write_text("", encoding="utf-8")
-            probe.unlink()
-            return candidate
-        except OSError:
-            continue
-    return Path(tempfile.gettempdir())
+    tokenization_marian.load_spm = load_spm
+    tokenization_marian._fr_translator_bytes_loader = True
 
 
 def _looks_like_missing_repo(exc: Exception) -> bool:

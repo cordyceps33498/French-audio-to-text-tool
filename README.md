@@ -221,7 +221,8 @@ Helsinki-NLP 的 OPUS-MT 官方模型里没有法语→中文直译对（2026-10
 
 > 为什么不用默认 HF 缓存：Windows 未开启“开发者模式”时普通用户没有创建符号链接的权限，
 > HF 缓存会退化为复制甚至留下 0 字节文件。平铺目录没有这个问题，复制到 U 盘也更直观。
-> 如果你的程序路径含中文，分词器会自动镜像到 ASCII 临时目录（sentencepiece 不支持中文路径）。
+> 程序路径含中文也没问题：sentencepiece 的窄字符文件 API 打不开中文路径，代码改为
+> 用 Python 读取 `.spm` 字节并调用 `LoadFromSerializedProto`，不再依赖临时目录。
 
 ---
 
@@ -300,6 +301,13 @@ CPU 模式下整体延迟约 **2~5 秒**，来源：
 
 看 `logs\fr-translator.log` 和 `run.bat` 窗口最后的提示；加 `--debug` 会打印完整异常堆栈。
 常见原因是缺少 VC++ 运行库（Windows 10/11 一般自带）或被杀软拦截了 `.pyd` 文件。
+
+### 6.8 日志里出现 `sentencepiece ... Not found: ...source.spm`
+
+这是旧版包的已知问题：程序路径含中文时，sentencepiece 的窄字符文件 API 打不开
+`source.spm`，即使文件存在也会报 Not found。**2026-10-21 15:40 之后的包已修复**
+（改为读取字节后 `LoadFromSerializedProto`）。请重新下载 full/lite 包；如果暂时不想重下，
+也可以只把新版 `app\fr_translator\translate.py` 覆盖到旧包对应位置。
 
 ---
 
@@ -451,8 +459,8 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 | 产物 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 351.4 MB（解压 1.51 GB） | `E51ACC48A785BFA742EBA2B67F12CDB0CF4DD9A7870D371CFBB203EC8C63687F` |
-| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `78B68FA9D0009A929286D9562255C5982A176A2BCF3E00785968E7B683CE6CE5` |
+| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `baaf34689dc146584ed76af58f090a7df1791532042d04aaefc6dac355362c67` |
+| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `0f8e75482e21d7fc7ef4ff8e079934520075c5cdbec49e9b94ea2fa48956488b` |
 
 已执行的验证：
 
@@ -465,6 +473,11 @@ python\python.exe ..\..\scripts\check_env.py --root .
 - 设备选择结果写入用户配置后，第二次启动不再提示，直接监听上次选择的设备；
 - 纯音乐（6 秒和弦）运行无输出、无异常，退出码 0；
 - 两个 zip 均通过 `ZipFile.testzip()` 完整性校验。
+
+> **2026-10-21 15:40 修复**：中文路径下 `sentencepiece` 的窄字符文件 API 会报
+> `Not found: ...source.spm`，导致翻译模型加载失败。现已改为 Python 读取 `.spm` 字节并
+> 调用 `LoadFromSerializedProto`，不再依赖临时目录或 ASCII 路径；两个 zip 已重新打包。
+> 如果你之前下载过旧包，请使用上表的新包（旧 SHA-256 已失效）。
 
 > 本机的 DSH 沙箱禁止写 `%LOCALAPPDATA%`，所以“用户配置写入”是在把 `LOCALAPPDATA`
 > 指到工作区临时目录后验证的；真实桌面上写入位置不变。无音频设备/设备被占用的提示

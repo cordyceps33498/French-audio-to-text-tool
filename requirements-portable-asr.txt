@@ -17,7 +17,7 @@ soundcard==0.4.3
 numpy==1.26.4
 PyYAML==6.0.2
 # ctranslate2 4.4.0 imports pkg_resources at runtime; setuptools 81+ removed it.
-setuptools==75.8.0
+setuptools==84.0.0
 silero-vad==5.1.2
 onnxruntime==1.19.2
 protobuf==4.25.5

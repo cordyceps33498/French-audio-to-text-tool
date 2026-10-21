@@ -27,7 +27,7 @@ dependencies = [
   "ctranslate2==4.4.0",
   "transformers==4.44.2",
   "sentencepiece==0.2.0",
-  "sacremoses==0.1.1",
+  "sacremoses==0.2.0",
   "huggingface-hub==0.25.1",
   "silero-vad==5.1.2",
   "onnxruntime==1.19.2",

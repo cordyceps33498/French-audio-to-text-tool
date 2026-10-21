@@ -1,0 +1,61 @@
+name: Bug report
+description: 报告一个可复现的问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。提交前请先搜索现有 Issue。
+        如果涉及安全漏洞，请不要在这里公开，按 SECURITY.md 私密报告。
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本
+      placeholder: "例如 Windows 11 23H2 x64"
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: 使用的包
+      options:
+        - lite 便携包
+        - full 便携包
+        - asr 便携包
+        - 源码运行（Python 3.10）
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 包括播放的音频类型、选择的输出设备
+      placeholder: |
+        1. 解压 full 包
+        2. 双击 run.bat，选择扬声器
+        3. 播放法语视频
+        4. 出现...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 / 实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（请先脱敏）
+      description: logs\fr-translator.log 的最后 50 行；正常日志不含字幕正文
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认
+      options:
+        - label: 我已搜索过现有 Issue
+          required: true
+        - label: 我已移除日志中的个人信息/音频内容
+          required: true

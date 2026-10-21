@@ -29,6 +29,21 @@ config.yaml
 logs/
 *.log
 *.wav
+*.zip
+*.7z
+*.rar
+
+# 密钥/证书/本地凭据（永远不要提交）
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.token
+secrets.*
+.pypirc
+.npmrc
 
 # 编辑器 / 系统
 .idea/

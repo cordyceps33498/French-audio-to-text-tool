@@ -405,10 +405,26 @@ fr-translator/
 ├── scripts/
 │   ├── prepare_models.py         # 预下载模型
 │   ├── build_portable.ps1        # 一键构建便携包
-│   └── check_env.py              # 环境自检
+│   ├── check_env.py              # 环境自检
+│   └── check_repo.py             # 仓库密钥/大文件/合规检查
 ├── tests/                        # unittest，无需额外依赖
+├── docs/
+│   ├── ARCHITECTURE.md           # 架构与线程模型
+│   ├── PRIVACY.md                # 隐私说明
+│   └── COMPLIANCE_SECURITY_REPORT.md
+├── SECURITY.md                   # 漏洞报告与安全边界
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── CHANGELOG.md
+├── THIRD_PARTY_NOTICES.md        # 依赖/模型许可证清单
+├── LICENSES/                     # Apache/BSD/MPL/PSF 许可证文本
 ├── portable/                     # 构建 staging（.gitignore）
-└── .github/workflows/build-portable.yml
+└── .github/
+    ├── workflows/build-portable.yml
+    ├── workflows/ci.yml
+    ├── workflows/codeql.yml
+    ├── ISSUE_TEMPLATE/
+    └── dependabot.yml
 ```
 
 ---
@@ -471,7 +487,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-workflow 会先构建 lite、再构建 full，上传 artifact，并把两个 zip 附加到 Release。
+workflow 会构建 lite、full、asr，上传 artifact，并把三个 zip 附加到 Release。
 full 包模型下载较慢，job 超时 240 分钟、构建步骤 180 分钟，`prepare_models.py` 内置 3 次重试。
 
 ---
@@ -516,9 +532,9 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 | 产物 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `e442c2f882f2e420a02bfc5fbf44108040cb871cf5deacab87a1e275ffe7235d` |
-| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `ea2a5ea8080b8aa16caddd2f720741879fea24911c7ed171d9c6ffa1de27e6ae` |
-| `FrenchTranslatorPortable-asr.zip` | 779 MB（解压 2.1 GB） | `84ee04be777cd8bdff926d58f0d2c52de72641bfdd3e467781de9c161a080dc1` |
+| `FrenchTranslatorPortable-lite.zip` | 351.5 MB（解压 1.51 GB） | `1e2ed1215425b2bb9f3d7457f74aa97ef3615689462d14f61ad2c39762f28581` |
+| `FrenchTranslatorPortable-full.zip` | 1.29 GB（解压 2.54 GB） | `fb7cb36990d0d79390cad26e65752661899901e18efaa36367cf966fc76adee9` |
+| `FrenchTranslatorPortable-asr.zip` | 779 MB（解压 2.1 GB） | `a1872e396db9d3563d6fa0258058bd8c418004d644f7386eec65143c04e6cdc2` |
 
 已执行的验证：
 
@@ -531,7 +547,7 @@ python\python.exe ..\..\scripts\check_env.py --root .
 - `run.bat --local` 成功把包复制到 `%TEMP%` 并从临时目录启动；
 - 设备选择结果写入用户配置后，第二次启动不再提示，直接监听上次选择的设备；
 - 纯音乐（6 秒和弦）运行无输出、无异常，退出码 0；
-- 两个 zip 均通过 `ZipFile.testzip()` 完整性校验。
+- 三个 zip 均通过 `ZipFile.testzip()` 完整性校验。
 
 > **2026-10-21 23:20 修复**：录音与识别解耦——ASR/翻译不再阻塞 loopback 读取；
 > 静音阈值 700ms、前后 padding 300ms、单句上限 20s，并加入上一句上下文提示。
@@ -539,7 +555,7 @@ python\python.exe ..\..\scripts\check_env.py --root .
 
 > **2026-10-21 15:40 修复**：中文路径下 `sentencepiece` 的窄字符文件 API 会报
 > `Not found: ...source.spm`，导致翻译模型加载失败。现已改为 Python 读取 `.spm` 字节并
-> 调用 `LoadFromSerializedProto`，不再依赖临时目录或 ASCII 路径；两个 zip 已重新打包。
+> 调用 `LoadFromSerializedProto`，不再依赖临时目录或 ASCII 路径；相关 zip 已重新打包。
 > 如果你之前下载过旧包，请使用上表的新包（旧 SHA-256 已失效）。
 
 > 本机的 DSH 沙箱禁止写 `%LOCALAPPDATA%`，所以“用户配置写入”是在把 `LOCALAPPDATA`
@@ -574,8 +590,25 @@ python\python.exe ..\..\scripts\check_env.py --root .
 - 音频只在本机内存中处理，不落盘、不发送；
 - 识别和翻译全部本地推理；
 - 只有**模型下载**会访问 Hugging Face（lite 首次运行或 `--online`），可用 `HF_ENDPOINT` 指向镜像；
-- 用户配置只包含设备名、窗口位置等，不包含任何识别内容。
+- 用户配置只包含设备名、窗口位置等，不包含任何识别内容；
+- 日志只记录耗时/字符数，不记录识别或翻译正文。
 
-## 14. License
+详见 [docs/PRIVACY.md](docs/PRIVACY.md)。
+
+## 14. 安全与合规
+
+- 漏洞报告：请走 GitHub Security Advisory，**不要公开 Issue**，见 [SECURITY.md](SECURITY.md)；
+- 第三方依赖与模型许可证：[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)、[LICENSES/](LICENSES/)；
+- 自查报告：[docs/COMPLIANCE_SECURITY_REPORT.md](docs/COMPLIANCE_SECURITY_REPORT.md)；
+- 仓库检查脚本：`python scripts/check_repo.py`（密钥模式、超大文件、禁止目录）；
+- CI：`.github/workflows/ci.yml`（测试 + 仓库检查）、`codeql.yml`（CodeQL）、Dependabot。
+
+下载 Release 后建议校验 SHA-256：
+
+```powershell
+Get-FileHash .\FrenchTranslatorPortable-full.zip -Algorithm SHA256
+```
+
+## 15. License
 
 [MIT](LICENSE)

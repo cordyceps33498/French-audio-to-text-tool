@@ -210,7 +210,7 @@ class TranslationEngine:
 
         if not self.config.translate.enabled:
             elapsed = time.perf_counter() - started
-            logger.info("耗时 %.2fs（仅识别）| %s", elapsed, french)
+            logger.info("识别耗时 %.2fs（%d 字符）", elapsed, len(french))
             self.sink.french_only(french)
             return
 
@@ -226,10 +226,10 @@ class TranslationEngine:
             return
 
         if not chinese:
-            logger.warning("翻译结果为空：%s", french)
+            logger.warning("翻译结果为空（%d 字符）", len(french))
             self.sink.translation_failed(french, "翻译结果为空")
             return
 
         elapsed = time.perf_counter() - started
-        logger.info("耗时 %.2fs | %s", elapsed, french)
+        logger.info("识别+翻译耗时 %.2fs（%d 字符）", elapsed, len(french))
         self.sink.caption(french, chinese)

@@ -571,6 +571,15 @@ exit /b %EXITCODE%
         Copy-Item -LiteralPath $exampleConfig -Destination (Join-Path $StagingRoot 'config.yaml') -Force
     }
 
+    $notices = Join-Path $RepoRoot 'THIRD_PARTY_NOTICES.md'
+    if (Test-Path -LiteralPath $notices) {
+        Copy-Item -LiteralPath $notices -Destination (Join-Path $StagingRoot 'THIRD_PARTY_NOTICES.md') -Force
+    }
+    $licenses = Join-Path $RepoRoot 'LICENSES'
+    if (Test-Path -LiteralPath $licenses) {
+        Copy-Item -LiteralPath $licenses -Destination $StagingRoot -Recurse -Force
+    }
+
     $logsDir = Join-Path $StagingRoot 'logs'
     New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
     Write-Utf8NoBom -Path (Join-Path $logsDir '说明.txt') -Content @'

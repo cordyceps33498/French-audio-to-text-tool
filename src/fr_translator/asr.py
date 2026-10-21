@@ -127,11 +127,11 @@ class WhisperASR:
                 if not text:
                     continue
                 if _is_hallucination(text):
-                    logger.debug("丢弃疑似幻听文本：%s", text)
+                    logger.debug("丢弃疑似幻听片段（%d 字符）", len(text))
                     continue
                 # 高 no_speech 概率 + 低置信度的片段通常是音乐/噪声
                 if getattr(segment, "no_speech_prob", 0.0) > 0.9 and getattr(segment, "avg_logprob", 0.0) < -1.5:
-                    logger.debug("丢弃低置信度片段：%s", text)
+                    logger.debug("丢弃低置信度片段（%d 字符）", len(text))
                     continue
                 parts.append(text)
         except Exception as exc:
